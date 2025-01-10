@@ -19,6 +19,7 @@
     "vite": "^6.0.5"
   },
   "dependencies": {
+    "@mux/mux-video": "^0.24.2",
     "myapp": "file:"
   }
 }
