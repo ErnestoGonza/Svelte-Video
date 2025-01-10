@@ -1,5 +1,4 @@
 <script>
-import { Video, Card } from 'flowbite-svelte';
 import '@mux/mux-video';
 </script>
 
@@ -7,7 +6,6 @@ import '@mux/mux-video';
   <div class="flex items-center h-full m-0">
     <!-- Video Section -->
     <div class="w-3/4 h-full flex items-center justify-center flex-col">
-      <!-- <Video src="/assets/boat.mp4" controls class="w-full h-3/4 rounded-lg"></Video> -->
       <mux-video
         playback-id="DS00Spx1CV902MCtPj5WknGlR102V5HFkDe"
         metadata-video-title="Max Max Fury Road"
