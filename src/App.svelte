@@ -1,10 +1,35 @@
 <script>
 import '@mux/mux-video';
 import { writable } from 'svelte/store';
+import Chart from 'chart.js/auto';
+import { onMount } from 'svelte';
+import { ThumbsDownSolid, ThumbsUpSolid } from 'flowbite-svelte-icons';
 
 let userInteractions = writable([]);
+let thumbsUp = writable(5);
+let thumbsDown = writable(1);
+
 let isPaused = true;
 let videoElement;
+let scrollableContent;
+let chart;
+let chartCanvas;
+
+function handleVote(isThumbsUp) {
+  isThumbsUp ? thumbsUp.update(num => num += 1) : thumbsDown.update(num => num += 1);
+  const time = videoElement.currentTime;
+
+  userInteractions.update(arr => [...arr, 
+    {
+      time: formatTime(time), 
+      x: null, 
+      y: null, 
+      eventType: isThumbsUp ? formatEvent("Thumbs Up") : formatEvent("Thumbs Down"),
+      currentRating: calculateRating(),
+    }
+  ])
+  setScrollBarLocation();
+}
 
 function toggleVideoPlayback() {
     if (videoElement) {
@@ -25,22 +50,17 @@ function handleVideoClick(event) {
   const eventType = event.type === 'keydown' ? event.code : event.type;
 
   userInteractions.update(arr => [...arr, {time: formatTime(time), x, y, eventType: formatEvent(eventType)}])
-  console.log($userInteractions);
+  setScrollBarLocation();
+}
 
-  //**
-  // *Using the Commented out section below we can confirm that offsetX and offsetY are
-  // positions relative to video not page.
-  // */
-  // if (videoElement) {
-  //     // Get the bounding rectangle of the video element
-  //     const rect = videoElement.getBoundingClientRect();
-      
-  //     // Calculate the x and y position relative to the video
-  //     const x = event.clientX - rect.left;
-  //     const y = event.clientY - rect.top;
-      
-  //     console.log(`Mouse position relative to video: X=${x}, Y=${y}`);
-  //   }
+function calculateRating() {
+  return Math.round($thumbsUp / ($thumbsDown + $thumbsUp) * 100);
+}
+
+function setScrollBarLocation() {
+  setTimeout(() => {
+    return scrollableContent.scrollTop = scrollableContent.scrollHeight;
+  }, 1)
 }
 
 function formatEvent(eventType) {
@@ -60,10 +80,47 @@ function formatTime(time) {
 
   return `${minutesStr}:${secondsStr}`
 }
+
+function initializeChart() {
+    if (chart) {
+        chart.destroy();
+    }
+    chart = new Chart(chartCanvas, {
+        type: 'doughnut',
+        data: {
+            datasets: [
+                {
+                    data: [$thumbsUp, $thumbsDown],
+                    backgroundColor: ['#4caf50', '#F44336'], 
+                    hoverBackgroundColor: ['#66bb6a', '#E57373'],
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                },
+            },
+        },
+    });
+}
+
+$: if (chart) {
+  chart.data.datasets[0].data = [$thumbsUp, $thumbsDown];
+  chart.update();
+}
+
+onMount(() => {
+    initializeChart();
+});
 </script>
 
 <main class="h-screen">
   <div class="flex items-center h-full m-0">
+    
     <!-- Video Section -->
     <div class="w-3/4 h-full flex items-center justify-center flex-col">
       <mux-video
@@ -78,18 +135,31 @@ function formatTime(time) {
         tabindex="0"
         role="button"
       ></mux-video>
-      <div class="m-4 w-[90%] h-32 bg-gray-800 text-white border border-gray-700 rounded-lg shadow-lg flex justify-center items-center">
+      <div class="m-4 w-[90%] h-32 bg-gray-800 text-white border border-gray-700 rounded-lg shadow-lg flex justify-evenly items-center">
+        <div class="h-3/4">
+          <canvas bind:this={chartCanvas}></canvas>
+        </div>
         <button
           class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
           onclick={toggleVideoPlayback}
         >
           {isPaused ? "Play" : "Pause"}
         </button>
+        <div class="h-2/4 w-28 flex justify-evenly">
+          <button class="thumbsDown" onclick={() => handleVote(false)}>
+            <ThumbsDownSolid class="h-9"/>
+          </button>
+          <button class="thumbsUp" onclick={() => handleVote(true)}>
+            <ThumbsUpSolid class="h-9"/>
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Data Section -->
-    <div class="m-4 w-1/4 h-3/4 bg-gray-800 text-white border border-gray-700 rounded-lg shadow-lg overflow-hidden overflow-y-auto scrollable-content">
+    <div 
+      class="m-4 w-1/4 h-3/4 bg-gray-800 text-white border border-gray-700 rounded-lg shadow-lg overflow-hidden overflow-y-auto scrollable-content" bind:this={scrollableContent}
+    >
       {#each $userInteractions as interaction}
         <div class="m-4">
           <div>
@@ -97,9 +167,11 @@ function formatTime(time) {
           </div>
           <p>
             {#if interaction.eventType.toLowerCase() === 'click'}
-              {`User clicked video at positions: X:${interaction.x}, Y:${interaction.y}`}
-            {:else}
-              {`User pressed ${interaction.eventType}`}
+                {`User clicked video at positions: X:${interaction.x}, Y:${interaction.y}`}
+              {:else if interaction.eventType.toLowerCase().includes('thumbs')}
+                {`User gave a ${interaction.eventType}, current approval rating: ${interaction.currentRating}%`}
+              {:else}
+                {`User pressed ${interaction.eventType}`}
             {/if}
           </p>
         </div>
@@ -126,5 +198,23 @@ function formatTime(time) {
 
   .scrollable-content::-webkit-scrollbar-thumb:hover {
     background: #a0aec0; 
+  }
+
+  .thumbsUp {
+    color: #4CAF50; 
+    transition: color 0.3s ease; 
+  }
+
+  .thumbsUp:hover {
+    color: #66bb6a;
+  }
+
+  .thumbsDown {
+    color: #F44336; 
+    transition: color 0.3s ease; 
+  }
+
+  .thumbsDown:hover {
+    color: #E57373;
   }
 </style>
